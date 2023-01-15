@@ -9,68 +9,9 @@ extern "C" {
     fn lgamma(f64) -> (f64);
     fn max(f64, f64) -> (f64);
     fn malloc(i64) -> (&mut[f64]);
-    fn begin() -> ();
-    fn eval() -> i64;
+    fn begin() -> (); // starts timer
+    fn eval() -> i64; // returns elapsed time
 }
-
-/*
-static inline int getArrayPos(int const xPos, int const yPos, int const xSize) {
-  return xPos + yPos * xSize;
-}
-
-
-inline __attribute__((always_inline)) void updateElement(double *w_tp, const double *w_t, const double *u, const double *v,
-                          int const& index_tp,
-                          int const& index,
-                          int const& index_xp, int const& index_xm,
-                          int const& index_yp, int const& index_ym,
-                          double& velX, double& velY, double& vis, double dTbyDX, double dTbyDX2, double oneOverR) {
-  // w_t + u*w_x + v*w_y = 1/R(w_xx + w_yy);
-  if (u[index] >= 0.0) {
-    velX = u[index] * (w_t[index] - w_t[index_xm]);
-  } else {
-    velX = u[index] * ( w_t[index_xp] - w_t[index]);
-  }
-  if (v[index] >= 0.0) {
-    velY = v[index] * (w_t[index] - w_t[index_ym]);
-  } else {
-    velY = v[index] * (w_t[index_yp] - w_t[index]);
-  }
-
-  vis = w_t[index_xp] + w_t[index_xm] + w_t[index_yp] + w_t[index_ym] - 4.0 * w_t[index];
-  w_tp[index_tp] = w_t[index] - dTbyDX * (velX + velY) + oneOverR * dTbyDX2 * vis;
-}
-
-
-inline void updateField(int xSize, int ySize,
-                        double *u_tp, double const* u_t, double *v_tp, double const *v_t,
-                        double dTbyDX, double dTbyDX2, double oneOverR,
-                        int localXGridSize) {
-
-  double velX;
-  double velY;
-  double vis;
-
-  for (int yPos = 0; yPos < ySize; yPos += 1) {
-    for (int xPos = 0; xPos < xSize; xPos += 1) {
-      int index_out = getArrayPos(xPos, yPos, xSize);
-      int index = getArrayPos(xPos + 1, yPos + 1, xSize + 2);
-      int index_xp = index + 1;
-      int index_xm = index - 1;
-      int index_yp = index + xSize + 2;
-      int index_ym = index - xSize - 2;
-
-      updateElement(u_tp, u_t, u_t, v_t, index_out, index, index_xp, index_xm, index_yp, index_ym, velX, velY, vis, dTbyDX, dTbyDX2, oneOverR);
-      updateElement(v_tp, v_t, u_t, v_t, index_out, index, index_xp, index_xm, index_yp, index_ym, velX, velY, vis, dTbyDX, dTbyDX2, oneOverR);
-    }
-  }
-}
-
-
-
-
-*/
-
 
 fn getArrayPos(xPos:i32, yPos:i32, xSize:i32) -> (i32){
     xPos + yPos * xSize
