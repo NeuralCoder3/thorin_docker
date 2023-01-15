@@ -1,0 +1,2 @@
+docker build . -t thorin
+docker run -it --rm -t thorin

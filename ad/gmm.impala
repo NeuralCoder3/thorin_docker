@@ -1,0 +1,345 @@
+extern "C" {
+    fn printString(&[u8]) -> ();
+    fn printFloat(f32) -> ();
+    fn printDouble(f64) -> ();
+    fn printInteger(i32) -> ();
+    fn printLong(i64) -> ();
+    fn log(f64) -> (f64);
+    fn free(&mut[f64]) -> ();
+    fn exp(f64) -> (f64);
+    fn lgamma(f64) -> (f64);
+    fn max(f64, f64) -> (f64);
+    fn malloc(i64) -> (&mut[f64]);
+    fn begin() -> ();
+    fn eval() -> (i64);
+    fn read_gmm_size(
+        file: &[u8],
+        d: &mut i32,
+        k: &mut i32,
+        n: &mut i32
+    ) -> ();
+    fn read_gmm(
+        file: &[u8],
+        d: &mut i32,
+        k: &mut i32,
+        n: &mut i32,
+        wishartM: &mut i32,
+        wishartGamma: &mut f64,
+        alphas: &mut[f64],
+        means: &mut[f64],
+        icf: &mut[f64],
+        x: &mut[f64],
+    ) -> ();
+}
+
+fn preprocess_qs( d: i32, k: i32,
+    icf : &[f64],
+    sum_qs : &mut[f64],
+    Qdiags : &mut[f64]) -> ()
+{
+    let icf_sz = d * (d + 1) >> 1;
+
+    for ik in 0 .. k {
+        sum_qs(ik) = 0.0;
+
+        for id in 0 .. d {
+            let q = icf(ik * icf_sz + id);
+            sum_qs(ik) = sum_qs(ik) + q;
+            Qdiags(ik * d + id) = exp(q);
+        }
+    }
+}
+
+fn subtract( d: i32,
+    x: &[f64],
+    y: &[f64],
+    out: &mut[f64]) -> ()
+{
+    for id in 0 .. d {
+        out(id) = x(id) - y(id);
+    }
+}
+
+fn Qtimesx( d: i32,
+    Qdiag: &[f64],
+    ltri: &[f64], // strictly lower triangular part
+    x: &[f64],
+    out: &mut[f64]) -> ()
+{
+    for id in 0 .. d {
+        out(id) = Qdiag(id) * x(id);
+    }
+
+
+    let mut Lparamsidx = 0;
+    for i in 0 .. d {
+        let x_val = x(i);
+        for j in (i + 1) .. d {
+            out(j) += ltri(Lparamsidx) * x_val;
+            Lparamsidx++;
+        }
+    }
+}
+
+fn sqnorm(d: i32, v : &[f64]) -> (f64){
+    let mut sum = 0.0;
+    for i in 0 .. d {
+        let val = v(i);
+        sum += val * val;
+    }
+
+    sum
+}
+
+fn sum(d: i32, v : &[f64]) -> (f64){
+    let mut sum = 0.0;
+    for i in 0 .. d {
+        let val = v(i);
+        sum += val;
+    }
+
+    sum
+}
+
+fn arr_max(n: i32,x : &[f64] ) -> f64
+{
+    let mut m = x(0);
+    for i in 1 .. n {
+        let val = x(i);
+        if m < val{
+            m = val;
+        }
+    }
+
+    m
+}
+
+fn logsumexp( n: i32, x : &[f64] ) -> f64
+{
+    let mx = arr_max(n, x);
+    let mut semx = 0.0;
+    for i in 0 .. n {
+        semx += exp(x(i) - mx);
+    }
+    log(semx) + mx
+}
+
+fn log_gamma_distrib( a: f64, p: i32) -> f64
+{
+    let PI : f64 = 3.14159265359;
+    let mut out = 0.25 * ((p * (p - 1)) as f64) * log(PI);
+
+    for j in 0 .. p {
+        out += lgamma(a - 0.5 * (j as f64));
+    }
+
+    out
+}
+
+
+fn log_wishart_prior( p: i32, k: i32,
+    wishartM: i32,
+    wishartGamma: f64,
+    sum_qs: &[f64],
+    Qdiags: &[f64],
+    icf: &[f64]) -> f64
+{
+    let n = p + wishartM + 1;
+    let icf_sz = p * (p + 1) >> 1;
+
+    let C = (n as f64) * (p as f64) * (log(wishartGamma) - 0.5 * log(2.0)) - log_gamma_distrib(0.5 * (n as f64), p);
+
+    let mut out = 0.0;
+
+    for ik in 0 .. k {
+        let currentQdiags =  &Qdiags(ik * p) as &[f64];
+        let currentIfc =  &icf(ik * icf_sz + p) as &[f64];
+
+        let frobenius = sqnorm(p, currentQdiags) + sqnorm(icf_sz - p, currentIfc);
+        out += 0.5 * wishartGamma * wishartGamma * frobenius - (wishartM as f64) * sum_qs(ik);
+    }
+
+    out - (k as f64) * C
+}
+
+extern fn print(size: i32, a : &mut [f64]) -> (){
+    for i in 0 .. size {
+        printDouble(a(i));
+    }
+}
+
+extern fn const(size: i32, a : &mut [f64], value : f64) -> (){
+    for i in 0 .. size {
+        a(i) = value;
+    }
+}
+
+extern fn gmm(d: i32, k: i32, n: i32,
+        wishartM: i32,
+        wishartGamma: f64,
+        alphas : &[f64],
+        means : &[f64],
+        icf : &[f64],
+        x : &[f64]) -> f64{
+
+    let PI : f64 = 3.14159265359;
+    let CONSTANT = -(n as f64) * ( d as f64) * 0.5 * log(2.0 * PI);
+    let icf_sz = d * (d + 1) >> 1;
+
+    let Qdiags = ~[d*k:f64];
+    let sum_qs = ~[k:f64];
+    let xcentered = ~[d:f64];
+    let Qxcentered = ~[d:f64];
+    let main_term = ~[k:f64];
+
+    preprocess_qs(d, k, icf, sum_qs, Qdiags);
+
+    let mut slse = 0.0;
+
+    for ix in 0 .. n {
+        let currentX : &[f64] =  &x(ix * d) as &[f64];
+        for ik in 0 .. k {
+            let currentQdiags =  &Qdiags(ik * d) as &[f64];
+            let currentMeans =  &means(ik * d) as &[f64];
+            let currentIfc =  &icf(ik * icf_sz + d) as &[f64];
+
+            subtract(d, currentX, currentMeans, xcentered);
+            Qtimesx(d, currentQdiags, currentIfc, xcentered, Qxcentered);
+            main_term(ik) = alphas(ik) + sum_qs(ik) - 0.5 * sqnorm(d, Qxcentered);
+        }
+        slse += logsumexp(k, main_term);
+    }
+
+    let lse_alphas = logsumexp(k, alphas);
+
+    let result = CONSTANT + slse - (n as f64) * lse_alphas + log_wishart_prior(d, k, wishartM, wishartGamma, sum_qs, Qdiags, icf);
+
+    free(Qdiags);
+    free(sum_qs);
+    free(xcentered);
+    free(Qxcentered);
+    free(main_term);
+
+    result
+}
+
+fn runBenchmark(d: i32, k: i32, n: i32,
+                        wishartM: i32,
+                        wishartGamma: f64,
+                        alphas : &[f64],
+                        alphas_d : &mut[f64],
+                        means : &[f64],
+                        means_d : &mut[f64],
+                        icf : &[f64],
+                        icf_d : &mut[f64],
+                        x : &[f64]) -> i64{
+
+
+    let alphas_size = k;
+    let means_size = (d*k);
+    let icf_size = (k * ( d * (d + 1) / 2 )) ;
+    let x_size = (d*n);
+
+    const(alphas_size, alphas_d, 0.0);
+    const(means_size, means_d, 0.0);
+    const(icf_size, icf_d, 0.0);
+
+    let diff = rev_diff(gmm);
+    begin();
+    let (fx, backward) = diff(d, k, n, wishartM, wishartGamma, alphas, alphas_d, means, means_d, icf, icf_d, x, 0 as &mut[f64]);
+    backward(1.0);
+    eval()
+}
+
+fn initBenchmark(file: &[u8]) -> (){
+    let mut d = 2;
+    let mut k = 5;
+    let mut n = 1000;
+
+    let dp = &mut d;
+    let kp = &mut k;
+    let np = &mut n;
+
+    read_gmm_size(file, dp, kp, np);
+
+    let mut wishartM: i32 = 0;
+    let mut wishartGamma: f64 = 1.0;
+
+    let alphas_size = k;
+    let means_size = (d*k);
+    let icf_size = (k * ( d * (d + 1) / 2 )) ;
+    let x_size = (d*n);
+
+    let size = alphas_size + means_size + icf_size;
+
+    let alphas = ~[alphas_size:f64];
+    let means = ~[means_size:f64];
+    let icf = ~[icf_size:f64];
+    let x = ~[x_size:f64];
+
+    let J = ~[size:f64];
+
+    let alphas_d = J;
+    let means_d = &alphas_d(alphas_size) as &mut[f64];
+    let icf_d = &means_d(means_size) as &mut[f64];
+
+    let wishartMp = &mut wishartM;
+    let wishartGammap = &mut wishartGamma;
+    read_gmm(file, dp, kp, np, wishartMp, wishartGammap, alphas, means, icf, x);
+
+    let min_samples = 10;
+    let min_time = 500 as i64;
+
+    //printString("\nbefore rev_diff \n");
+    // let diff = rev_diff(gmm);
+    // printString("\nafter rev_diff \n");
+    // begin();
+    // let (fx, backward) = diff(d, k, n, wishartM, wishartGamma, alphas, alphas_d, means, means_d, icf, icf_d, x, 0 as &mut[f64]);
+    // printString("\nafter exec \n");
+    // printString("\nafter exec \n");
+    // backward(1.0);
+    // printString("\nafter backward \n");
+    // eval();
+    // printString("\nafter eval \n");
+
+/*
+    printDouble(fx);
+    printString("\nalpha gradients: \n");
+    print(alphas_size, alphas_d);
+    printString("\nmeans gradients: \n");
+    print(means_size, means_d);
+    printString("\nicf gradients: \n");
+    print(icf_size, icf_d);
+*/
+    let mut time_sum = 0 as i64;
+    let mut count = 0;
+    let mut min_runtime = -1 as i64;
+
+    while( time_sum < 10000 as i64 && (count < min_samples || time_sum < min_time) ){
+        let time = runBenchmark(d, k, n, wishartM, wishartGamma, alphas, alphas_d, means, means_d, icf, icf_d, x);
+        if min_runtime == -1 as i64 || time < min_runtime{
+            min_runtime = time;
+        }
+
+        time_sum += time;
+        count++;
+    }
+
+    printLong(min_runtime);
+    print(size, J);
+}
+
+
+fn main(argc: i32,argv :&[&[u8]]) -> i32 {
+    if argc < 2{
+        printString("No Benchmark specified");
+    }else{
+        let file = argv(1);
+        //printString(file);
+        initBenchmark(file);
+    }
+
+    0
+}
+
+
