@@ -1,0 +1,175 @@
+extern "C" {
+    fn printString(&[u8]) -> ();
+    fn printFloat(f32) -> ();
+    fn printDouble(f64) -> ();
+    fn printInteger(i32) -> ();
+    fn printLong(i64) -> ();
+    fn log(f64) -> (f64);
+    fn exp(f64) -> (f64);
+    fn lgamma(f64) -> (f64);
+    fn max(f64, f64) -> (f64);
+    fn malloc(i64) -> (&mut[f64]);
+    fn begin() -> ();
+    fn eval() -> i64;
+}
+
+/*
+static inline int getArrayPos(int const xPos, int const yPos, int const xSize) {
+  return xPos + yPos * xSize;
+}
+
+
+inline __attribute__((always_inline)) void updateElement(double *w_tp, const double *w_t, const double *u, const double *v,
+                          int const& index_tp,
+                          int const& index,
+                          int const& index_xp, int const& index_xm,
+                          int const& index_yp, int const& index_ym,
+                          double& velX, double& velY, double& vis, double dTbyDX, double dTbyDX2, double oneOverR) {
+  // w_t + u*w_x + v*w_y = 1/R(w_xx + w_yy);
+  if (u[index] >= 0.0) {
+    velX = u[index] * (w_t[index] - w_t[index_xm]);
+  } else {
+    velX = u[index] * ( w_t[index_xp] - w_t[index]);
+  }
+  if (v[index] >= 0.0) {
+    velY = v[index] * (w_t[index] - w_t[index_ym]);
+  } else {
+    velY = v[index] * (w_t[index_yp] - w_t[index]);
+  }
+
+  vis = w_t[index_xp] + w_t[index_xm] + w_t[index_yp] + w_t[index_ym] - 4.0 * w_t[index];
+  w_tp[index_tp] = w_t[index] - dTbyDX * (velX + velY) + oneOverR * dTbyDX2 * vis;
+}
+
+
+inline void updateField(int xSize, int ySize,
+                        double *u_tp, double const* u_t, double *v_tp, double const *v_t,
+                        double dTbyDX, double dTbyDX2, double oneOverR,
+                        int localXGridSize) {
+
+  double velX;
+  double velY;
+  double vis;
+
+  for (int yPos = 0; yPos < ySize; yPos += 1) {
+    for (int xPos = 0; xPos < xSize; xPos += 1) {
+      int index_out = getArrayPos(xPos, yPos, xSize);
+      int index = getArrayPos(xPos + 1, yPos + 1, xSize + 2);
+      int index_xp = index + 1;
+      int index_xm = index - 1;
+      int index_yp = index + xSize + 2;
+      int index_ym = index - xSize - 2;
+
+      updateElement(u_tp, u_t, u_t, v_t, index_out, index, index_xp, index_xm, index_yp, index_ym, velX, velY, vis, dTbyDX, dTbyDX2, oneOverR);
+      updateElement(v_tp, v_t, u_t, v_t, index_out, index, index_xp, index_xm, index_yp, index_ym, velX, velY, vis, dTbyDX, dTbyDX2, oneOverR);
+    }
+  }
+}
+
+
+
+
+*/
+
+
+fn getArrayPos(xPos:i32, yPos:i32, xSize:i32) -> (i32){
+    xPos + yPos * xSize
+}
+
+fn updateElement(
+    w_tp : &mut[f64],
+    w_t : &[f64],
+    u : &[f64],
+    v : &[f64],
+    index_tp : i32,
+    index : i32,
+    index_xp : i32, index_xm : i32,
+    index_yp : i32, index_ym : i32,
+    dTbyDX : f64,
+    dTbyDX2 : f64,
+    oneOverR : f64) -> ()
+{
+    let mut velX = 0.0;
+    let mut velY = 0.0;
+    if u(index) >= 0.0 {
+        velX = u(index) * (w_t(index) - w_t(index_xm));
+    } else {
+        velX = u(index) * ( w_t(index_xp) - w_t(index));
+    }
+    if v(index) >= 0.0 {
+        velY = v(index) * (w_t(index) - w_t(index_ym));
+    } else {
+        velY = v(index) * (w_t(index_yp) - w_t(index));
+    }
+
+    let vis = w_t(index_xp) + w_t(index_xm) + w_t(index_yp) + w_t(index_ym) - 4.0 * w_t(index);
+    w_tp(index_tp) = w_t(index) - dTbyDX * (velX + velY) + oneOverR * dTbyDX2 * vis;
+}
+
+extern fn updateField(
+    xSize : i32,
+    ySize : i32,
+    u_tp : &mut[f64],
+    u : &[f64],
+    v_tp : &mut[f64],
+    v : &[f64],
+    dTbyDX : f64,
+    dTbyDX2 : f64,
+    oneOverR : f64) -> ()
+{
+    for yPos in 0 .. ySize {
+        for xPos in 0 .. xSize {
+            let index_out = getArrayPos(xPos, yPos, xSize);
+            let index = getArrayPos(xPos + 1, yPos + 1, xSize + 2);
+            let index_xp = index + 1;
+            let index_xm = index - 1;
+            let index_yp = index + xSize + 2;
+            let index_ym = index - xSize - 2;
+
+            updateElement(
+                u_tp, u, u, v,
+                index_out, index, index_xp, index_xm, index_yp, index_ym,
+                dTbyDX, dTbyDX2, oneOverR);
+            updateElement(
+                v_tp, v, u, v,
+                index_out, index, index_xp, index_xm, index_yp, index_ym,
+                dTbyDX, dTbyDX2, oneOverR);
+        }
+    }
+}
+
+
+
+fn main(argc: i32,argv :&[&[u8]]) -> i32 {
+
+    let updateField_diff = rev_diff(updateField);
+
+    let xSize = 10;
+    let ySize = 10;
+    let arr_size = (xSize + 2) * (ySize + 2);
+    let u_tp = ~[arr_size:f64];
+    let v_tp = ~[arr_size:f64];
+    let u = ~[arr_size:f64];
+    let v = ~[arr_size:f64];
+    let dTbyDX = 42.0;
+    let dTbyDX2 = 42.0;
+    let oneOverR = 42.0;
+
+    let u_tp_diff = ~[arr_size:f64];
+    let v_tp_diff = ~[arr_size:f64];
+    let u_diff = ~[arr_size:f64];
+    let v_diff = ~[arr_size:f64];
+
+    begin();
+    let backward = updateField_diff(xSize, ySize, 
+        u_tp, u_tp_diff, 
+        u, u_diff,
+        v_tp, v_tp_diff,
+        v, v_diff,
+        dTbyDX, dTbyDX2, oneOverR);
+    let gradient = backward();
+    let elapsed=eval();
+    printLong(elapsed);
+
+    0
+}

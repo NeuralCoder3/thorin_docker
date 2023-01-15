@@ -9,12 +9,16 @@ RUN git clone --recurse-submodules https://github.com/NeuralCoder3/thorin2.git /
 RUN git clone --recurse-submodules https://github.com/NeuralCoder3/impala.git  /root/impala
 
 WORKDIR /root/thorin2
-RUN git checkout ea58c618c0f379e2c84fe7a786e33478609d4a04
+RUN git pull --all
+RUN git fetch --all
+RUN git checkout 6b1e0be47399ec120c9547ceac4f842472dd50d9
 RUN mkdir build 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug 
 RUN cmake --build build -j $(nproc)
 
 WORKDIR /root/impala
+RUN git pull --all
+RUN git fetch --all
 RUN git checkout 1cfe8087fa959fda5450f70a52d682c7768989dd
 RUN mkdir build 
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug 
