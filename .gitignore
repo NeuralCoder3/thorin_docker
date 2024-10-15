@@ -1,2 +1,7 @@
 ./*.impala
 *tmp*
+benchmark/env
+/mnt
+benchmark/mount/gmm/data
+output
+.out

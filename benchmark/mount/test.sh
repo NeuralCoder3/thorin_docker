@@ -1,8 +1,8 @@
-FOLDERS="10k_small 10k 10k_D128 10k_K100 10k_D256 10k_K200"
-# RESULT_DIR="results/gmm"
-RESULT_DIR="/home/s8maullr/results"
+: ${FOLDERS:="10k_small"} # default is 10k_small, but you can other ones by setting the environment variable.
+# possible configurations: 10k_small 10k 10k_D128 10k_K100 10k_D256 10k_K200
+RESULT_DIR="/output"
 
-EXEC_DIR=/etc/ad/mount
+EXEC_DIR=/app/mount
 
 cd $EXEC_DIR
 
@@ -11,8 +11,8 @@ for FOLDER in $FOLDERS; do
     OUTPUT_DIR="$RESULT_DIR/$FOLDER"
     mkdir -p $OUTPUT_DIR
 
-    echo "Running Thorin"
-    $EXEC_DIR/runner.sh $EXEC_DIR/gmm/thorin.out $EXEC_DIR/gmm/data/$FOLDER $OUTPUT_DIR/thorin.csv
+    echo "Running MimIR"
+    $EXEC_DIR/runner.sh $EXEC_DIR/gmm/thorin.out $EXEC_DIR/gmm/data/$FOLDER $OUTPUT_DIR/mimir.csv
 
     echo "Running Enzyme"
     $EXEC_DIR/runner.sh $EXEC_DIR/gmm/enzyme.out $EXEC_DIR/gmm/data/$FOLDER $OUTPUT_DIR/enzyme.csv
