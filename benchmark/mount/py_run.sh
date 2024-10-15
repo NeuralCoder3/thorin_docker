@@ -6,10 +6,9 @@ fi
 FILE=$3
 MODULE=$1
 DATA=$2
-EXEC_DIR=/etc/ad/mount
+EXEC_DIR=/app/mount
 
-source /opt/conda/bin/activate
-conda activate /etc/ad/env
+source /opt/conda/bin/activate /app/env
 
 TIMESTAMP=$(date +"%Y_%m_%d_%H_%M_%S")
 TEMP_DIR="$EXEC_DIR/logs/$TIMESTAMP"
